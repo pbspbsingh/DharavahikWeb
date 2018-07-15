@@ -51,4 +51,4 @@ const port = 8000;
 app.listen(port, () => logger.info(`Webserver started at ${port}.`));
 
 startTor();
-startCrawler();
+startCrawler(3);

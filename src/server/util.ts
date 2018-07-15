@@ -7,16 +7,20 @@ import path from 'path';
 
 import logger from './logger';
 
-const SocksProxyAgent = require('socks-proxy-agent');
-const proxy = 'socks://127.0.0.1:9050';
+const USE_TOR = false; //TODO set this to true, if you want to use Tor.
+const TOR_PORT = 9050;
 
 let torValidator: NodeJS.Timer;
 export function startTor() {
+    if (!USE_TOR) {
+        logger.warn('App is not starting tor server.');
+        return;
+    }
     const workingDir = 'C:\\Utils\\TorBrowser\\Browser';
     const tor = spawn(path.resolve(workingDir, 'TorBrowser\\Tor\\tor.exe'), ['DataDirectory', path.resolve('./data/tor/'),
         '--defaults-torrc', path.resolve(workingDir, 'TorBrowser\\Data\\Tor\\torrc-defaults')], { cwd: workingDir });
     logger.info('Staring tor for proxy service, pid: ' + tor.pid);
-    
+
     tor.stdout.on('data', chunk => logger.info(`Tor: ${chunk.toString()}`));
     tor.stdout.on('error', err => logger.warn(`Tor: error: ${err}`));
     tor.on('close', (code, signal) => logger.error('Tor process is dead.'));
@@ -42,12 +46,13 @@ export function startTor() {
 }
 
 export function startCrawler(waitTime = 6) {
-    const cralwer = spawn('java', ['-jar', 'crawler.jar', waitTime + '']);
+    const cralwer = spawn('java', ['-jar', 'crawler.jar', `${waitTime}`, `${USE_TOR}`, `${TOR_PORT}`]);
+    cralwer.stdout.on('data', chunk => console.log(`Java: ${chunk.toString()}`));
     cralwer.stderr.on('data', chunk => logger.error(`Crawler: ${chunk.toString()}`));
     cralwer.on('close', chunk => {
-        logger.error(`crawler process with pid: ${cralwer.pid} died.`);
-        logger.info('Lets start the crawler process again.');
-        startCrawler();
+        logger.error(`Crawler process with pid: ${cralwer.pid} died, Lets start the crawler process again.`);
+
+        startCrawler(waitTime);
     });
 
     logger.info(`Spawned a child java process pid: ${cralwer.pid} for crawling.`);
@@ -85,6 +90,8 @@ export type Episode = {
     videoUrl: string
 }
 
+const SocksProxyAgent = require('socks-proxy-agent');
+const proxy = `socks://127.0.0.1:${TOR_PORT}`;
 const httpAgent = new SocksProxyAgent(proxy);
 const httpsAgent = new SocksProxyAgent(proxy, true);
 
@@ -96,12 +103,17 @@ export function httpGet(uri: string, headers: { [k: string]: string | string[] }
         protocol,
         host,
         path,
-        agent: protocol === 'https:' ? httpsAgent : httpAgent,
+        agent: undefined,
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36',
             ...headers
         }
     };
+    if (USE_TOR) {
+        options['agent'] = (protocol === 'https:') ? httpsAgent : httpAgent;
+    } else {
+        logger.warn('Not using tor for this http request.');
+    }
     return new Promise((accept, reject) => {
         if (protocol === 'https:') {
             https.get(options, res => accept(res));
