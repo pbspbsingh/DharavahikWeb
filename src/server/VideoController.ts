@@ -36,11 +36,11 @@ class VideController {
     }
 
     private async stream(req: express.Request, res: express.Response,
-        next: express.NextFunction, video: string) {
+        next: express.NextFunction, video: string, referer = 'http://hindistopa.com/yeh-rishta-kya-kehlata-hai/?e=944597&h=knilelgnisdhenpayalp') {
         const rangeHeader = <string>req.headers.range;
         if (rangeHeader) {
             logger.info(`Got playback request with header ${rangeHeader}`);
-            const response = await httpGet(video, { 'range': rangeHeader });
+            const response = await httpGet(video, { referer, 'range': rangeHeader });
             const positions = rangeHeader.replace('bytes=', '').split('-');
             const start = parseInt(positions[0]);
             const end = positions[1] ? parseInt(positions[1]) : start + parseInt(<string>response.headers["content-length"]) - 1;
@@ -61,7 +61,7 @@ class VideController {
             response.on('end', () => res.end());
         } else {
             logger.info('Got playback request without range header.');
-            const response = await httpGet(video);
+            const response = await httpGet(video, { referer });
             const totalLen = response.headers["content-length"];
             if (totalLen)
                 this.contentCache[video] = parseInt(totalLen);
