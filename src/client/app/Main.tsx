@@ -15,8 +15,9 @@ type MainState = {
 };
 export default class Main extends React.Component<MainProps, MainState> {
     state: MainState;
-    videoModelRef: React.RefObject<HTMLDivElement>;
-    videoRef: React.RefObject<HTMLVideoElement>;
+    private videoModelRef: React.RefObject<HTMLDivElement>;
+    private videoRef: React.RefObject<HTMLVideoElement>;
+    private autoPlayTimer?: NodeJS.Timer;
 
     constructor(props: MainProps) {
         super(props);
@@ -32,16 +33,22 @@ export default class Main extends React.Component<MainProps, MainState> {
         if (modal) {
             $(modal).on('hidden.bs.modal', () => {
                 this.videoRef.current!.pause();
+                this.autoPlayTimer && clearTimeout(this.autoPlayTimer);
             });
         }
-        
+
+        this.videoRef.current!.onended = () => {
+            this.autoPlayTimer && clearTimeout(this.autoPlayTimer);
+            if (this.state.clickedIdx > 0)
+                this.autoPlayTimer = setTimeout(() => this.launchEpisode(this.state.clickedIdx - 1, ''), 2000);
+        };
     }
 
     launchEpisode = (idx: number, hash: string) => {
         this.setState({ clickedIdx: idx });
         const selectedSource = `/player?serialKey=${this.props.serialKey}&hash=${this.props.episodes[idx].hash}`;
-        if (this.videoRef.current) {
-            const video = this.videoRef.current;
+        const video = this.videoRef.current;
+        if (video) {
             if (video.played)
                 video.pause();
             if (video.firstChild)
